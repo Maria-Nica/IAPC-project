@@ -1,0 +1,39 @@
+# === Build (Maven) - only sources go to git, no build artifacts ===
+target/
+!**/src/main/**/target/
+!**/src/test/**/target/
+.mvn/wrapper/maven-wrapper.jar
+build/
+*.jar
+*.war
+
+# === IDE ===
+.idea/
+*.iml
+*.iws
+*.ipr
+.vscode/
+.classpath
+.project
+.settings/
+.factorypath
+.sts4-cache/
+
+# === Logs ===
+logs/
+*.log
+
+# === Local secrets (everyone creates their own .env from .env.example) ===
+.env
+.env.*
+!.env.example
+
+# === Generated RAG artifacts ===
+**/vector-store/*.json
+
+# === Claude Code (local settings) ===
+.claude/settings.local.json
+
+# === Operating system ===
+.DS_Store
+Thumbs.db
