@@ -1,0 +1,51 @@
+# EduPulse AI - local infrastructure
+# Usage: copy .env.example to .env, fill in the values, then run: docker compose up -d
+# Image versions are pinned on purpose, so every build is reproducible and can be reverted.
+
+name: edupulse
+
+services:
+
+  # Vector store for document embeddings (accessed by the services via gRPC)
+  qdrant:
+    image: qdrant/qdrant:v1.12.4
+    container_name: edupulse-qdrant
+    environment:
+      QDRANT__SERVICE__API_KEY: ${QDRANT_API_KEY:?QDRANT_API_KEY is not set in .env}
+    ports:
+      - "6333:6333"   # REST API + web dashboard (http://localhost:6333/dashboard)
+      - "6334:6334"   # gRPC API (used by Spring AI)
+    volumes:
+      - qdrant-data:/qdrant/storage
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c ':> /dev/tcp/127.0.0.1/6333' || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  # Relational data: document versions & hashes, audit log, acronym dictionary,
+  # users/tenants and full-text keyword search (tsvector) for hybrid retrieval
+  postgres:
+    image: postgres:16.6-alpine
+    container_name: edupulse-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER is not set in .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is not set in .env}
+      POSTGRES_DB: ${POSTGRES_DB:?POSTGRES_DB is not set in .env}
+    ports:
+      - "5434:5432"   # 5434 on the host, so it does not clash with other local databases
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      # Scripts in db/init run in alphabetical order, only when the volume is created
+      - ./db/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+volumes:
+  qdrant-data:
+  postgres-data:
