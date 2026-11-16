@@ -1,6 +1,11 @@
 server:
   port: 8081
 
+app:
+  rag:
+    top-k: 20                  # number of chunks retrieved per question
+    similarity-threshold: 0.3  # chunks below this score are ignored (tune after ingestion)
+
 spring:
   application:
     name: compliance-service
