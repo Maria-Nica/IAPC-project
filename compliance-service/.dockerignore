@@ -1,0 +1,7 @@
+# Keep the Docker build context small and free of local files/secrets
+target/
+.idea/
+*.iml
+.vscode/
+logs/
+.env
