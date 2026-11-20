@@ -1,0 +1,204 @@
+{
+  "info": {
+    "name": "EduPulse AI - retrieval-pre (Story 3)",
+    "description": "Story 3, Task 1: safe metadata filtering.\n\nRun the stack with `docker compose up --build -d`, then run the whole collection.\n`baseUrl` points directly to retrieval-pre (temporary port 8081); once api-gateway exists, change it to http://localhost:8080/retrieval-pre.\n\nValid filter fields: doc_id, source, version, is_latest, page. Operators: ==, !=, in, >, >=, <, <=, combined with && (AND) and || (OR).",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8081" },
+    { "key": "question", "value": "How do I prevent SQL injection?" }
+  ],
+  "item": [
+    {
+      "name": "Valid filters",
+      "item": [
+        {
+          "name": "No filter (standard flow)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('status is 200', () => pm.response.to.have.status(200));"
+          ] } }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "text/plain" }],
+            "body": { "mode": "raw", "raw": "{{question}}" },
+            "url": { "raw": "{{baseUrl}}/api/compliance/ask", "host": ["{{baseUrl}}"], "path": ["api", "compliance", "ask"] }
+          }
+        },
+        {
+          "name": "Single field",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('status is 200', () => pm.response.to.have.status(200));"
+          ] } }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "text/plain" }],
+            "body": { "mode": "raw", "raw": "{{question}}" },
+            "url": {
+              "raw": "{{baseUrl}}/api/compliance/ask?filter=source == 'owasp-top10-2021.pdf'",
+              "host": ["{{baseUrl}}"], "path": ["api", "compliance", "ask"],
+              "query": [{ "key": "filter", "value": "source == 'owasp-top10-2021.pdf'" }]
+            }
+          }
+        },
+        {
+          "name": "AND (two fields)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('status is 200', () => pm.response.to.have.status(200));"
+          ] } }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "text/plain" }],
+            "body": { "mode": "raw", "raw": "{{question}}" },
+            "url": {
+              "raw": "{{baseUrl}}/api/compliance/ask?filter=source == 'owasp-top10-2021.pdf' && page > 3",
+              "host": ["{{baseUrl}}"], "path": ["api", "compliance", "ask"],
+              "query": [{ "key": "filter", "value": "source == 'owasp-top10-2021.pdf' && page > 3" }]
+            }
+          }
+        },
+        {
+          "name": "OR (latest version or version 2+)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('status is 200', () => pm.response.to.have.status(200));"
+          ] } }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "text/plain" }],
+            "body": { "mode": "raw", "raw": "{{question}}" },
+            "url": {
+              "raw": "{{baseUrl}}/api/compliance/ask?filter=is_latest == true || version >= 2",
+              "host": ["{{baseUrl}}"], "path": ["api", "compliance", "ask"],
+              "query": [{ "key": "filter", "value": "is_latest == true || version >= 2" }]
+            }
+          }
+        },
+        {
+          "name": "Nested AND / OR",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('status is 200', () => pm.response.to.have.status(200));"
+          ] } }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "text/plain" }],
+            "body": { "mode": "raw", "raw": "{{question}}" },
+            "url": {
+              "raw": "{{baseUrl}}/api/compliance/ask?filter=(is_latest == true && page >= 1) || source == 'owasp-asvs-5.0.pdf'",
+              "host": ["{{baseUrl}}"], "path": ["api", "compliance", "ask"],
+              "query": [{ "key": "filter", "value": "(is_latest == true && page >= 1) || source == 'owasp-asvs-5.0.pdf'" }]
+            }
+          }
+        },
+        {
+          "name": "IN (list of sources)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('status is 200', () => pm.response.to.have.status(200));"
+          ] } }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "text/plain" }],
+            "body": { "mode": "raw", "raw": "{{question}}" },
+            "url": {
+              "raw": "{{baseUrl}}/api/compliance/ask?filter=source in ['owasp-top10-2021.pdf', 'owasp-top10-2025.pdf']",
+              "host": ["{{baseUrl}}"], "path": ["api", "compliance", "ask"],
+              "query": [{ "key": "filter", "value": "source in ['owasp-top10-2021.pdf', 'owasp-top10-2025.pdf']" }]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Invalid filters (400)",
+      "item": [
+        {
+          "name": "Field not in whitelist",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('status is 400', () => pm.response.to.have.status(400));",
+            "pm.test('lists the valid fields', () => {",
+            "  const body = pm.response.json();",
+            "  pm.expect(body.validFields).to.eql(['doc_id', 'source', 'version', 'is_latest', 'page']);",
+            "  pm.expect(body.detail).to.include('password');",
+            "});"
+          ] } }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "text/plain" }],
+            "body": { "mode": "raw", "raw": "{{question}}" },
+            "url": {
+              "raw": "{{baseUrl}}/api/compliance/ask?filter=password == 'x'",
+              "host": ["{{baseUrl}}"], "path": ["api", "compliance", "ask"],
+              "query": [{ "key": "filter", "value": "password == 'x'" }]
+            }
+          }
+        },
+        {
+          "name": "Forbidden field hidden in AND",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('status is 400', () => pm.response.to.have.status(400));",
+            "pm.test('lists the valid fields', () => pm.expect(pm.response.json().validFields).to.be.an('array').that.is.not.empty);"
+          ] } }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "text/plain" }],
+            "body": { "mode": "raw", "raw": "{{question}}" },
+            "url": {
+              "raw": "{{baseUrl}}/api/compliance/ask?filter=source == 'owasp-top10-2021.pdf' && secret == 1",
+              "host": ["{{baseUrl}}"], "path": ["api", "compliance", "ask"],
+              "query": [{ "key": "filter", "value": "source == 'owasp-top10-2021.pdf' && secret == 1" }]
+            }
+          }
+        },
+        {
+          "name": "Wrong value type",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('status is 400', () => pm.response.to.have.status(400));",
+            "pm.test('explains the expected type', () => pm.expect(pm.response.json().detail).to.include('expects a number'));"
+          ] } }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "text/plain" }],
+            "body": { "mode": "raw", "raw": "{{question}}" },
+            "url": {
+              "raw": "{{baseUrl}}/api/compliance/ask?filter=page == 'three'",
+              "host": ["{{baseUrl}}"], "path": ["api", "compliance", "ask"],
+              "query": [{ "key": "filter", "value": "page == 'three'" }]
+            }
+          }
+        },
+        {
+          "name": "Operator not allowed (NOT)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('status is 400', () => pm.response.to.have.status(400));",
+            "pm.test('lists the valid operators', () => pm.expect(pm.response.json().validOperators).to.include('eq'));"
+          ] } }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "text/plain" }],
+            "body": { "mode": "raw", "raw": "{{question}}" },
+            "url": {
+              "raw": "{{baseUrl}}/api/compliance/ask?filter=NOT (page == 1)",
+              "host": ["{{baseUrl}}"], "path": ["api", "compliance", "ask"],
+              "query": [{ "key": "filter", "value": "NOT (page == 1)" }]
+            }
+          }
+        },
+        {
+          "name": "Malformed expression",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('status is 400', () => pm.response.to.have.status(400));",
+            "pm.test('says the filter is malformed', () => pm.expect(pm.response.json().detail).to.eql('Malformed filter expression'));"
+          ] } }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "text/plain" }],
+            "body": { "mode": "raw", "raw": "{{question}}" },
+            "url": {
+              "raw": "{{baseUrl}}/api/compliance/ask?filter====",
+              "host": ["{{baseUrl}}"], "path": ["api", "compliance", "ask"],
+              "query": [{ "key": "filter", "value": "===" }]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
