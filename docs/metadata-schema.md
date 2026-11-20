@@ -25,7 +25,10 @@ names and types. Changing a field name or type requires updating both sides.
 1. **Stable `doc_id`**: derived from the identity of the source, not from its content, so a new
    version keeps the same `doc_id`.
    - Static files: SHA-256 of the file path relative to the resources folder (e.g. `owasp/top10-2021.pdf`).
-   - Web sources: SHA-256 of the normalized URL.
+   - Web sources: the **logical document name** configured for the source, as a lowercase slug
+     (e.g. `owasp-top10`), **not** the URL. New editions of the same standard are often published
+     at a different URL (OWASP Top 10 2021 and 2025), and they must still be versions of one document.
+     Only a source without a configured name falls back to the SHA-256 of its normalized URL.
 2. **Qdrant point ID**: a deterministic UUID built from `doc_id` + `version` + `chunk_index`
    (`UUID.nameUUIDFromBytes(...)`). Re-ingesting the same file overwrites the same points instead
    of creating duplicates.
@@ -62,7 +65,7 @@ names and types. Changing a field name or type requires updating both sides.
 
 ```json
 {
-  "doc_id": "a81c0d42...",
+  "doc_id": "owasp-cheatsheet-sql-injection",
   "version": 1,
   "source": "SQL Injection Prevention Cheat Sheet",
   "page": 1,
@@ -74,3 +77,20 @@ names and types. Changing a field name or type requires updating both sides.
   "fetched_at": "2026-11-30T09:00:00Z"
 }
 ```
+
+## Example (two editions of one web document)
+
+OWASP Top 10 2021 and 2025 live at different URLs, but share the logical name `owasp-top10`,
+so the 2025 edition becomes version 2 of the same document and the 2021 chunks stay as version 1.
+
+```json
+[
+  { "doc_id": "owasp-top10", "version": 1, "source": "OWASP Top 10 2021", "is_latest": "false",
+    "source_url": "https://owasp.org/Top10/2021/", "valid_from": "2026-11-30T09:00:00Z" },
+  { "doc_id": "owasp-top10", "version": 2, "source": "OWASP Top 10 2025", "is_latest": "true",
+    "source_url": "https://owasp.org/Top10/2025/", "valid_from": "2026-12-03T09:00:00Z" }
+]
+```
+
+Default retrieval returns only the 2025 chunks; `?filter=doc_id == 'owasp-top10' && version == 1`
+returns the 2021 content (only the fields relevant to versioning are shown above; the URLs are illustrative).
