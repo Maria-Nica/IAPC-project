@@ -1,53 +1,108 @@
-# EduPulse AI - local infrastructure
-# Usage: copy .env.example to .env, fill in the values, then run: docker compose up -d
+# EduPulse AI - RAG platform: Spring Boot + Spring AI microservices (one container per story)
+# Infrastructure: Qdrant (vector store, gRPC), PostgreSQL (relational data)
+# Later: Eureka (discovery) and Spring Cloud Gateway (the only public entry point)
+#
+# Usage:
+#   cp .env.example .env     # then edit the values
+#   docker compose up --build -d
+#   docker compose ps
+#
+# Repo layout (Maven multi-module, module name = folder name):
+#   eureka-server/  api-gateway/  ingest-static/  ingest-dynamic/
+#   retrieval-pre/  retrieval-post/  pom.xml  Dockerfile
+#
 # Image versions are pinned on purpose, so every build is reproducible and can be reverted.
 
 name: edupulse
 
+# ---------- Reusable blocks ----------
+
+x-base-env: &base-env
+  JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=75"
+
+# Env shared by every service that talks to Qdrant and the LLM/embedding API.
+# Only ingest-static creates the Qdrant collection, so the services never race to create it.
+x-rag-env: &rag-env
+  <<: *base-env
+  LLM_API_KEY: "${LLM_API_KEY:?Set LLM_API_KEY in .env}"
+  LLM_BASE_URL: "${LLM_BASE_URL:-https://api.openai.com/v1}"
+  CHAT_MODEL: "${CHAT_MODEL:-gpt-4o-mini}"
+  EMBEDDING_MODEL: "${EMBEDDING_MODEL:-text-embedding-3-small}"
+  # Must match the embedding model's output size. Changing the model means re-indexing.
+  EMBEDDING_DIMENSIONS: "${EMBEDDING_DIMENSIONS:-1536}"
+  QDRANT_HOST: "qdrant"              # service name inside the Docker network
+  QDRANT_GRPC_PORT: "6334"
+  QDRANT_API_KEY: "${QDRANT_API_KEY:?Set QDRANT_API_KEY in .env}"
+  QDRANT_COLLECTION: "${QDRANT_COLLECTION:-edupulse_rag}"
+
+x-healthcheck: &healthcheck
+  test: ["CMD-SHELL", "wget -qO- http://localhost:8080/actuator/health | grep -q UP"]
+  interval: 15s
+  timeout: 5s
+  retries: 8
+  start_period: 40s
+
+x-service-defaults: &service-defaults
+  restart: unless-stopped
+  networks: [rag-net]
+  mem_limit: 768m
+  healthcheck: *healthcheck
+
+# ---------- Services ----------
+
 services:
 
-  # Vector store for document embeddings (accessed by the services via gRPC)
+  # ----- Infrastructure -----
+
+  # Vector store for document embeddings (accessed by the services via gRPC).
+  # Used instead of pgvector, as agreed in the lab.
   qdrant:
     image: qdrant/qdrant:v1.17.0   # must match the Qdrant client used by Spring AI 2.0 (1.17.x)
     container_name: edupulse-qdrant
+    restart: unless-stopped
+    networks: [rag-net]
     environment:
-      QDRANT__SERVICE__API_KEY: ${QDRANT_API_KEY:?QDRANT_API_KEY is not set in .env}
+      QDRANT__SERVICE__API_KEY: "${QDRANT_API_KEY:?Set QDRANT_API_KEY in .env}"
     ports:
-      - "6333:6333"   # REST API + web dashboard (http://localhost:6333/dashboard)
-      - "6334:6334"   # gRPC API (used by Spring AI)
+      # Bound to localhost only, for the dashboard (http://localhost:6333/dashboard) during development.
+      - "127.0.0.1:6333:6333"   # REST API + web dashboard
+      - "127.0.0.1:6334:6334"   # gRPC API
     volumes:
       - qdrant-data:/qdrant/storage
     healthcheck:
       test: ["CMD-SHELL", "bash -c ':> /dev/tcp/127.0.0.1/6333' || exit 1"]
-      interval: 5s
-      timeout: 3s
+      interval: 10s
+      timeout: 5s
       retries: 10
-    restart: unless-stopped
 
-  # Relational data: document versions & hashes, audit log, acronym dictionary,
-  # users/tenants and full-text keyword search (tsvector) for hybrid retrieval
+  # Relational data: ingestion manifest (doc_id, checksum, version), audit data, acronyms
   postgres:
     image: postgres:16.6-alpine
     container_name: edupulse-postgres
+    restart: unless-stopped
+    networks: [rag-net]
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER is not set in .env}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is not set in .env}
-      POSTGRES_DB: ${POSTGRES_DB:?POSTGRES_DB is not set in .env}
-    ports:
-      - "5434:5432"   # 5434 on the host, so it does not clash with other local databases
+      POSTGRES_DB: "${POSTGRES_DB:?Set POSTGRES_DB in .env}"
+      POSTGRES_USER: "${POSTGRES_USER:?Set POSTGRES_USER in .env}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}"
     volumes:
       - postgres-data:/var/lib/postgresql/data
-      # Scripts in db/init run in alphabetical order, only when the volume is created
-      - ./db/init:/docker-entrypoint-initdb.d:ro
+      # Scripts in init-db run in alphabetical order, only when the volume is created
+      - ./init-db:/docker-entrypoint-initdb.d:ro
+    ports:
+      # Bound to localhost only, for DBeaver/psql/IntelliJ during development.
+      - "127.0.0.1:${POSTGRES_PORT:-5434}:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
-      interval: 5s
-      timeout: 3s
+      interval: 10s
+      timeout: 5s
       retries: 10
-    restart: unless-stopped
 
-  # Story 3: pre-retrieval (filters, normalization, expansion) - answers questions with citations
+  # ----- RAG epic: one container per story -----
+
+  # Story 3: pre-retrieval (filters, normalization, expansion)
   retrieval-pre:
+    <<: *service-defaults
     build:
       context: .
       dockerfile: Dockerfile
@@ -57,23 +112,22 @@ services:
     image: edupulse/retrieval-pre:${APP_VERSION:-dev}
     container_name: edupulse-retrieval-pre
     environment:
-      LLM_API_KEY: ${LLM_API_KEY:?LLM_API_KEY is not set in .env}
-      QDRANT_API_KEY: ${QDRANT_API_KEY:?QDRANT_API_KEY is not set in .env}
-      QDRANT_HOST: qdrant          # service name inside the Docker network
-      QDRANT_GRPC_PORT: 6334
+      <<: *rag-env
+      APP_RETRIEVAL_TOP_K: "${RETRIEVAL_TOP_K:-20}"
+      APP_RETRIEVAL_SIMILARITY_THRESHOLD: "${SIMILARITY_THRESHOLD:-0.70}"
+      APP_QUERY_EXPANSION_VARIANTS: "${QUERY_EXPANSION_VARIANTS:-3}"
     ports:
       # Temporary, localhost only: removed once api-gateway (the only public port) exists
       - "127.0.0.1:8081:8080"
     depends_on:
       qdrant:
         condition: service_healthy
-    healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/actuator/health | grep -q UP || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 12
-      start_period: 20s
-    restart: unless-stopped
+
+# ---------- Network and storage ----------
+
+networks:
+  rag-net:
+    driver: bridge
 
 volumes:
   qdrant-data:

@@ -16,7 +16,6 @@ resources/
 # Not needed inside the image build
 docker-compose*.yml
 init-db/
-db/
 Dockerfile
 .dockerignore
 *.md
