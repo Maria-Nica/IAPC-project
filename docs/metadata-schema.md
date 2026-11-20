@@ -15,7 +15,7 @@ names and types. Changing a field name or type requires updating both sides.
 | `page`        | integer               | always           | Page number in the original document (`1` for sources without pages). Spring AI's PDF readers write this as `page_number`, so it must be renamed to `page` during ingestion | citations, filters                         |
 | `chunk_index` | integer, from `0`     | always           | Position of the chunk inside one version of the document                                      | neighbor stitching                         |
 | `checksum`    | string (SHA-256, hex) | always           | Hash of the whole source file/content, used to detect changes                                 | update process                             |
-| `is_latest`   | boolean               | always           | `true` only for chunks of the newest version                                                  | default retrieval, filters                 |
+| `is_latest`   | string `"true"`/`"false"` | always    | `"true"` only for chunks of the newest version. Stored as a **string**, because Spring AI's Qdrant filter converter does not support boolean values | default retrieval, filters                 |
 | `valid_from`  | string (ISO-8601 UTC) | always           | When this version was ingested, e.g. `2026-11-20T14:30:00Z`                                   | versioning                                 |
 | `source_url`  | string (URL)          | web sources only | Original URL of the page, remote PDF or repository                                            | citations, audit                           |
 | `fetched_at`  | string (ISO-8601 UTC) | web sources only | When the content was downloaded                                                               | audit                                      |
@@ -34,7 +34,7 @@ names and types. Changing a field name or type requires updating both sides.
      atomically. Queries never see a mix of old and new content, and a failure mid-update leaves
      the previous version intact. Only one version of a static file stays in the store.
    - `ingest-dynamic` (Story 2, Task 2): a new version **keeps** the old chunks, marked
-     `is_latest = false` with their `valid_from`. Retrieval returns only `is_latest = true` unless
+     `is_latest = "false"` with their `valid_from`. Retrieval returns only `is_latest = "true"` unless
      a version is requested explicitly.
 4. **Neighbor stitching** looks up adjacent chunks by `doc_id` **and** `version` and `chunk_index`,
    so it never crosses document boundaries or mixes two versions of the same document.
@@ -53,7 +53,7 @@ names and types. Changing a field name or type requires updating both sides.
   "page": 7,
   "chunk_index": 12,
   "checksum": "9b2d4e7f...",
-  "is_latest": true,
+  "is_latest": "true",
   "valid_from": "2026-11-24T10:15:00Z"
 }
 ```
@@ -68,7 +68,7 @@ names and types. Changing a field name or type requires updating both sides.
   "page": 1,
   "chunk_index": 3,
   "checksum": "c4e1f0a9...",
-  "is_latest": true,
+  "is_latest": "true",
   "valid_from": "2026-11-30T09:00:00Z",
   "source_url": "https://cheatsheetseries.owasp.org/cheatsheets/SQL_Injection_Prevention_Cheat_Sheet.html",
   "fetched_at": "2026-11-30T09:00:00Z"

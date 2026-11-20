@@ -54,6 +54,11 @@ app:
   retrieval:
     top-k: ${APP_RETRIEVAL_TOP_K:20}
     similarity-threshold: ${APP_RETRIEVAL_SIMILARITY_THRESHOLD:0.70}
+    filter:
+      # Whitelist: filter expressions from URL parameters may only use these fields and operators.
+      # AND (&&) / OR (||) combinations of allowed comparisons are always accepted.
+      allowed-fields: doc_id,source,version,is_latest,page
+      allowed-operators: eq,ne,in,gt,gte,lt,lte
 
 logging:
   level:

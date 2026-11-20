@@ -1,9 +1,10 @@
 package com.edupulse.retrievalpre.controller;
 
 import com.edupulse.retrievalpre.config.RetrievalAdvisorFactory;
+import com.edupulse.retrievalpre.filter.InvalidFilterException;
+import com.edupulse.retrievalpre.filter.SafeFilterParser;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.vectorstore.filter.Filter;
-import org.springframework.ai.vectorstore.filter.FilterExpressionTextParser;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -26,21 +27,24 @@ public class ComplianceQAController {
 
     private final ChatClient chatClient;
     private final RetrievalAdvisorFactory advisorFactory;
-    private final FilterExpressionTextParser filterParser = new FilterExpressionTextParser();
+    private final SafeFilterParser filterParser;
 
-    public ComplianceQAController(ChatClient chatClient, RetrievalAdvisorFactory advisorFactory) {
+    public ComplianceQAController(ChatClient chatClient, RetrievalAdvisorFactory advisorFactory,
+                                  SafeFilterParser filterParser) {
         this.chatClient = chatClient;
         this.advisorFactory = advisorFactory;
+        this.filterParser = filterParser;
     }
 
     /**
      * @param question the user question (plain text body)
-     * @param filter   optional metadata filter, e.g. source == 'owasp-top10-2021.pdf'
+     * @param filter   optional metadata filter, e.g. source == 'owasp-top10-2021.pdf' && page > 3
      */
     @PostMapping("/ask")
     public String ask(@RequestBody String question,
                       @RequestParam(value = "filter", required = false) String filter) {
-        Filter.Expression filterExpression = (filter == null || filter.isBlank()) ? null : parseFilter(filter);
+        // Only a validated filter object reaches the vector store; no filter means the standard flow
+        Filter.Expression filterExpression = parseFilter(filter);
 
         return chatClient.prompt()
                 .system(SYSTEM_PROMPT)
@@ -52,9 +56,9 @@ public class ComplianceQAController {
 
     private Filter.Expression parseFilter(String filter) {
         try {
-            return filterParser.parse(filter);
-        } catch (RuntimeException e) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid filter expression: " + filter, e);
+            return filterParser.parse(filter).orElse(null);
+        } catch (InvalidFilterException e) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, e.getMessage(), e);
         }
     }
 }
