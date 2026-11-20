@@ -1,0 +1,67 @@
+# Story 4: post-retrieval (rerank, neighbor stitching, citations, evaluation).
+server:
+  port: 8080
+
+spring:
+  application:
+    name: retrieval-post
+
+  # Secrets come from environment variables.
+  # When running from the IDE, they are read from the .env file in the repository root.
+  # In Docker, docker-compose passes them as environment variables.
+  config:
+    import:
+      - optional:file:.env[.properties]
+      - optional:file:../.env[.properties]
+
+  # Java 21 virtual threads for request handling
+  threads:
+    virtual:
+      enabled: true
+
+  ai:
+    openai:
+      api-key: ${LLM_API_KEY:}
+      base-url: ${LLM_BASE_URL:https://api.openai.com/v1}   # the OpenAI SDK used by Spring AI 2.0 needs /v1
+      chat:
+        options:
+          model: ${CHAT_MODEL:gpt-4o-mini}
+      embedding:
+        options:
+          model: ${EMBEDDING_MODEL:text-embedding-3-small}
+
+    vectorstore:
+      qdrant:
+        host: ${QDRANT_HOST:localhost}
+        port: ${QDRANT_GRPC_PORT:6334}   # gRPC port
+        api-key: ${QDRANT_API_KEY:}
+        use-tls: false
+        collection-name: ${QDRANT_COLLECTION:edupulse_rag}
+        # Only ingest-static creates the collection; the other services expect it to exist.
+        initialize-schema: false
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+app:
+  rerank:
+    top-n: ${APP_RERANK_TOP_N:20}   # chunks retrieved before reranking
+    top-k: ${APP_RERANK_TOP_K:5}    # chunks kept after reranking
+  stitch:
+    token-budget: ${APP_STITCH_TOKEN_BUDGET:2000}
+  grounding:
+    # Below this similarity the answer is "I don't know".
+    similarity-threshold: ${APP_RETRIEVAL_SIMILARITY_THRESHOLD:0.70}
+
+logging:
+  level:
+    root: info
+    com.edupulse: info
+    org.springframework.ai: info

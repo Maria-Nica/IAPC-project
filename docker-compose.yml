@@ -123,6 +123,26 @@ services:
       qdrant:
         condition: service_healthy
 
+  # Story 4: post-retrieval (rerank, stitching, citations, evaluation)
+  retrieval-post:
+    <<: *service-defaults
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        MODULE: retrieval-post
+    image: edupulse/retrieval-post:${APP_VERSION:-dev}
+    container_name: edupulse-retrieval-post
+    environment:
+      <<: *rag-env
+      APP_RERANK_TOP_K: "${RERANK_TOP_K:-5}"
+      APP_STITCH_TOKEN_BUDGET: "${STITCH_TOKEN_BUDGET:-2000}"
+      APP_RETRIEVAL_SIMILARITY_THRESHOLD: "${SIMILARITY_THRESHOLD:-0.70}"
+    # No published port: reachable only inside rag-net (later through api-gateway)
+    depends_on:
+      qdrant:
+        condition: service_healthy
+
 # ---------- Network and storage ----------
 
 networks:

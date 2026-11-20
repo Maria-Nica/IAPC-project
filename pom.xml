@@ -23,6 +23,7 @@
          eureka-server, api-gateway, ingest-static, ingest-dynamic, retrieval-pre, retrieval-post -->
     <modules>
         <module>retrieval-pre</module>
+        <module>retrieval-post</module>
     </modules>
 
     <properties>
