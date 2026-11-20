@@ -1,5 +1,7 @@
 package com.edupulse.retrievalpre.filter;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.ai.vectorstore.filter.Filter;
 import org.springframework.ai.vectorstore.filter.FilterExpressionTextParser;
 import org.springframework.stereotype.Component;
@@ -19,6 +21,9 @@ import java.util.Optional;
  */
 @Component
 public class SafeFilterParser {
+
+    private static final Logger log = LoggerFactory.getLogger(SafeFilterParser.class);
+    private static final int MAX_LOGGED_LENGTH = 200;
 
     // Expected value type of each metadata field (see docs/metadata-schema.md)
     private static final Map<String, Class<?>> FIELD_TYPES = Map.of(
@@ -49,14 +54,29 @@ public class SafeFilterParser {
             return Optional.empty();
         }
 
-        Filter.Expression expression;
         try {
-            expression = textParser.parse(rawFilter);
-        } catch (RuntimeException e) {
-            throw invalid("Malformed filter expression", e);
-        }
+            Filter.Expression expression;
+            try {
+                expression = textParser.parse(rawFilter);
+            } catch (RuntimeException e) {
+                throw invalid("Malformed filter expression", e);
+            }
 
-        return Optional.of(validate(expression));
+            Filter.Expression validated = validate(expression);
+            log.info("Filter accepted: {} -> {}", forLog(rawFilter), validated);
+            return Optional.of(validated);
+        } catch (InvalidFilterException e) {
+            log.warn("Filter rejected: {} - reason: {}", forLog(rawFilter), e.getMessage());
+            throw e;
+        }
+    }
+
+    // User input is written to the log on a single line and truncated, to prevent log injection
+    private static String forLog(String text) {
+        String singleLine = text.replaceAll("[\\r\\n\\t]", " ");
+        return singleLine.length() > MAX_LOGGED_LENGTH
+                ? singleLine.substring(0, MAX_LOGGED_LENGTH) + "..."
+                : singleLine;
     }
 
     public List<String> getAllowedFields() {
