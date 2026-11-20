@@ -8,7 +8,7 @@ services:
 
   # Vector store for document embeddings (accessed by the services via gRPC)
   qdrant:
-    image: qdrant/qdrant:v1.12.4
+    image: qdrant/qdrant:v1.17.0   # must match the Qdrant client used by Spring AI 2.0 (1.17.x)
     container_name: edupulse-qdrant
     environment:
       QDRANT__SERVICE__API_KEY: ${QDRANT_API_KEY:?QDRANT_API_KEY is not set in .env}
@@ -46,24 +46,29 @@ services:
       retries: 10
     restart: unless-stopped
 
-  # Advanced RAG: answers compliance questions with citations
-  compliance-service:
-    build: ./compliance-service
+  # Story 3: pre-retrieval (filters, normalization, expansion) - answers questions with citations
+  retrieval-pre:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        MODULE: retrieval-pre
     # The image tag allows going back to a previous release (APP_VERSION=0.1.0 docker compose up -d)
-    image: edupulse/compliance-service:${APP_VERSION:-dev}
-    container_name: edupulse-compliance-service
+    image: edupulse/retrieval-pre:${APP_VERSION:-dev}
+    container_name: edupulse-retrieval-pre
     environment:
-      OPENAI_API_KEY: ${OPENAI_API_KEY:?OPENAI_API_KEY is not set in .env}
+      LLM_API_KEY: ${LLM_API_KEY:?LLM_API_KEY is not set in .env}
       QDRANT_API_KEY: ${QDRANT_API_KEY:?QDRANT_API_KEY is not set in .env}
       QDRANT_HOST: qdrant          # service name inside the Docker network
       QDRANT_GRPC_PORT: 6334
     ports:
-      - "8081:8081"
+      # Temporary, localhost only: removed once api-gateway (the only public port) exists
+      - "127.0.0.1:8081:8080"
     depends_on:
       qdrant:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8081/actuator/health | grep -q UP || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/actuator/health | grep -q UP || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 12

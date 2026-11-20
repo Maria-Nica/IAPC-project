@@ -1,6 +1,6 @@
-package com.edupulse.compliance.config;
+package com.edupulse.retrievalpre.config;
 
-import org.springframework.ai.chat.client.advisor.RetrievalAugmentationAdvisor;
+import org.springframework.ai.rag.advisor.RetrievalAugmentationAdvisor;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.rag.generation.augmentation.ContextualQueryAugmenter;
 import org.springframework.ai.rag.retrieval.search.DocumentRetriever;
@@ -19,7 +19,7 @@ public class RetrievalAdvisorFactory {
 
     // Metadata keys written by the ingestion pipeline
     public static final String SOURCE = "source";
-    public static final String PAGE_NUMBER = "page_number";
+    public static final String PAGE = "page";
     private static final String UNKNOWN = "unknown";
 
     private final VectorStore vectorStore;
@@ -56,9 +56,9 @@ public class RetrievalAdvisorFactory {
     private List<Document> withSourceHeaders(List<Document> documents) {
         return documents.stream()
                 .map(document -> document.mutate()
-                        .text("[source:%s, page_number:%s]%n%s".formatted(
+                        .text("[source:%s, page:%s]%n%s".formatted(
                                 document.getMetadata().getOrDefault(SOURCE, UNKNOWN),
-                                document.getMetadata().getOrDefault(PAGE_NUMBER, UNKNOWN),
+                                document.getMetadata().getOrDefault(PAGE, UNKNOWN),
                                 document.getText()))
                         .build())
                 .toList();

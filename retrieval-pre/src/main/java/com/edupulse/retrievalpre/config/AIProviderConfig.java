@@ -1,4 +1,4 @@
-package com.edupulse.compliance.config;
+package com.edupulse.retrievalpre.config;
 
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.openai.OpenAiChatModel;

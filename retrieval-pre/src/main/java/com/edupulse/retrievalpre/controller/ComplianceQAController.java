@@ -1,6 +1,6 @@
-package com.edupulse.compliance.controller;
+package com.edupulse.retrievalpre.controller;
 
-import com.edupulse.compliance.config.RetrievalAdvisorFactory;
+import com.edupulse.retrievalpre.config.RetrievalAdvisorFactory;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.vectorstore.filter.Filter;
 import org.springframework.ai.vectorstore.filter.FilterExpressionTextParser;
@@ -20,8 +20,8 @@ public class ComplianceQAController {
             You are a web application security compliance assistant based on official OWASP guidance.
             Provide clear and concise answers, prevention steps and recommendations.
             Use ONLY the provided CONTEXT. If the answer is not in the CONTEXT, say "I don't know".
-            Each CONTEXT passage starts with a header like [source:filename.pdf, page_number:12].
-            Cite every source you use by copying the header values exactly, e.g. [source:filename.pdf, page_number:12].
+            Each CONTEXT passage starts with a header like [source:filename.pdf, page:12].
+            Cite every source you use by copying the header values exactly, e.g. [source:filename.pdf, page:12].
             """;
 
     private final ChatClient chatClient;

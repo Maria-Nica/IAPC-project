@@ -22,6 +22,7 @@
     <!-- Modules are added here as each service is created:
          eureka-server, api-gateway, ingest-static, ingest-dynamic, retrieval-pre, retrieval-post -->
     <modules>
+        <module>retrieval-pre</module>
     </modules>
 
     <properties>
